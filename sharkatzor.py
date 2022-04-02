@@ -352,6 +352,7 @@ class Sharkatzor(discord.Client):
                     if message.author.id not in DISCORD_ALLOWED_USERS and not any(role.id in DISCORD_ALLOWED_ROLES for role in message.author.roles):
                         self.logger.warning(f"Delete message - #{message.author.name}: {message.content}")
                         await message.delete()
+                        await self.channel.send(f"{message.author.mention} favor utilizar o canal #divulgações para postar link da Twitch.")
 
 
 if __name__ == "__main__":
