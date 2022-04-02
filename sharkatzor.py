@@ -7,6 +7,7 @@ import json
 import os
 import base64
 import asyncio
+import traceback
 from copy import copy
 from datetime import datetime
 
@@ -22,8 +23,8 @@ YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID", "UCJ0vp6VTn7JuFNEMj5YIRcQ")
 TIME_INTERVAL_SECONDS = int(os.getenv("TIME_INTERVAL_SECONDS", 60))
 TWITCH_COOLDOWN = int(os.getenv("TWITCH_COOLDOWN", 6))
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
-DISCORD_ALLOWED_ROLES = os.getenv("DISCORD_ALLOWED_ROLES", "").split(",")
-DISCORD_ALLOWED_USERS = os.getenv("DISCORD_ALLOWED_ROLES", "").split(",")
+DISCORD_ALLOWED_ROLES = [int(it) for it in os.getenv("DISCORD_ALLOWED_ROLES", "0").split(",")]
+DISCORD_ALLOWED_USERS = [int(it) for it in os.getenv("DISCORD_ALLOWED_USERS", "0").split(",")]
 DATABASE_PATH = os.getenv("DATABASE_PATH", "database.json")
 RETRY_MAX = 5
 RETRY_TIME_INTERNAL = 10
@@ -190,6 +191,9 @@ class Sharkatzor(discord.Client):
         self.logger.info('Discord Token: {}****'.format(DISCORD_TOKEN[:4]))
         self.logger.info('General Discord channel: {}****'.format(str(GENERAL_CHANNEL_ID)[:4]))
         self.logger.info('Private Discord channel: {}****'.format(str(PRIVATE_CHANNEL_ID)[:4]))
+        self.logger.info('Shared  Discord channel: {}****'.format(str(SHARED_CHANNEL_ID)[:4]))
+        self.logger.info(f'Allowed Discord users: {DISCORD_ALLOWED_USERS}')
+        self.logger.info(f'Allowed Discord roles: {DISCORD_ALLOWED_ROLES}')
         self.logger.info('Github Token: {}****'.format(str(GITHUB_TOKEN)[:4]))
 
         self.logger.info("Reading DB ...")
@@ -204,7 +208,7 @@ class Sharkatzor(discord.Client):
         self.channel = self.get_channel(GENERAL_CHANNEL_ID)
         self.private_channel = self.get_channel(PRIVATE_CHANNEL_ID)
         self.shared_channel = self.get_channel(SHARED_CHANNEL_ID)
-        self.logger.info(f"Acabo de ser inicializado como usuário o `{self.user}`.")
+        self.logger.info(f"Started as `{self.user}`.")
         await self._login_twitch()
 
     @tasks.loop(seconds=TIME_INTERVAL_SECONDS)
@@ -297,7 +301,7 @@ class Sharkatzor(discord.Client):
         self.logger.debug(f"Write DB Entry: {dbentry}")
         headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
         params = {"content": dbentry.b64encode(), "message": "Update DB", "branch": "database", "sha": sha}
-        response = requests.put(url=self._database_url, headers=headers, params=params)
+        response = requests.put(url=self._database_url, headers=headers, json=params)
         if not response.ok:
             message = f"Could not update DB: {response.text}"
             await self.private_channel.send(message)
