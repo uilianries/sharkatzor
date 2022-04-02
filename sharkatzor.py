@@ -21,6 +21,8 @@ YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID", "UCJ0vp6VTn7JuFNEMj5YIRcQ")
 TIME_INTERVAL_SECONDS = int(os.getenv("TIME_INTERVAL_SECONDS", 60))
 TWITCH_COOLDOWN = int(os.getenv("TWITCH_COOLDOWN", 6))
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+DISCORD_ALLOWED_ROLES = os.getenv("DISCORD_ALLOWED_ROLES", "").split(",")
+DISCORD_ALLOWED_USERS = os.getenv("DISCORD_ALLOWED_ROLES", "").split(",")
 RETRY_MAX = 5
 RETRY_TIME_INTERNAL = 10
 
@@ -341,6 +343,15 @@ class Sharkatzor(discord.Client):
             self.logger.info(f"Live on Twitch is started.")
             await self.channel.send(f"Tomahawk está ao vivo na Twitch @everyone!\n**{self.live.title}**\n{self.live.link}")
             await self._write_db()
+
+    async def on_message(self, message):
+        self.logger.debug(f"#{message.channel.name}: {message.content}")
+        if message.channel.id == GENERAL_CHANNEL_ID and message.embeds:
+            for embed in message.embeds:
+                if ("//www.twitch.tv/" in embed.url or "//twitch.tv/" in embed.url) and "twitch.tv/tomahawk_aoe" not in embed.url:
+                    if message.author.id not in DISCORD_ALLOWED_USERS and not any(role.id in DISCORD_ALLOWED_ROLES for role in message.author.roles):
+                        self.logger.warning(f"Delete message - #{message.author.name}: {message.content}")
+                        await message.delete()
 
 
 if __name__ == "__main__":
