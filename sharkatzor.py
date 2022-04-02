@@ -14,6 +14,7 @@ from datetime import datetime
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", None)
 GENERAL_CHANNEL_ID = int(os.getenv("GENERAL_CHANNEL_ID", 0))
 PRIVATE_CHANNEL_ID = int(os.getenv("PRIVATE_CHANNEL_ID", 0))
+SHARED_CHANNEL_ID = int(os.getenv("SHARED_CHANNEL_ID", 0))
 TWITCH_CHANNEL = os.getenv("TWITCH_CHANNEL", "tomahawk_aoe")
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID", None)
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET", None)
@@ -23,6 +24,7 @@ TWITCH_COOLDOWN = int(os.getenv("TWITCH_COOLDOWN", 6))
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 DISCORD_ALLOWED_ROLES = os.getenv("DISCORD_ALLOWED_ROLES", "").split(",")
 DISCORD_ALLOWED_USERS = os.getenv("DISCORD_ALLOWED_ROLES", "").split(",")
+DATABASE_PATH = os.getenv("DATABASE_PATH", "database.json")
 RETRY_MAX = 5
 RETRY_TIME_INTERNAL = 10
 
@@ -176,6 +178,7 @@ class Sharkatzor(discord.Client):
         self.access_token = None
         self.channel = None
         self.private_channel = None
+        self.shared_channel = None
         self.db_entry = None
         self.live = None
         self.video = None
@@ -200,6 +203,7 @@ class Sharkatzor(discord.Client):
         self.logger.info(f'We have logged in as {self.user}')
         self.channel = self.get_channel(GENERAL_CHANNEL_ID)
         self.private_channel = self.get_channel(PRIVATE_CHANNEL_ID)
+        self.shared_channel = self.get_channel(SHARED_CHANNEL_ID)
         self.logger.info(f"Acabo de ser inicializado como usuário o `{self.user}`.")
         await self._login_twitch()
 
@@ -283,14 +287,17 @@ class Sharkatzor(discord.Client):
                 self.logger.info(f"Twitch login expired: {response.text}")
         return False
 
+    @property
+    def _database_url(self):
+        return f"https://api.github.com/repos/uilianries/tomahawk-bot/contents/{DATABASE_PATH}"
+
     async def _write_db(self):
         sha = self._get_db_sha()
         dbentry = DBEntry(self.video, self.live)
         self.logger.debug(f"Write DB Entry: {dbentry}")
         headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
         params = {"content": dbentry.b64encode(), "message": "Update DB", "branch": "database", "sha": sha}
-        response = requests.put(url="https://api.github.com/repos/uilianries/tomahawk-bot/contents/db%2Ejson",
-                                headers=headers, params=params)
+        response = requests.put(url=self._database_url, headers=headers, params=params)
         if not response.ok:
             message = f"Could not update DB: {response.text}"
             await self.private_channel.send(message)
@@ -299,8 +306,7 @@ class Sharkatzor(discord.Client):
     def _read_db(self):
         headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
         params = {"ref": "database"}
-        response = requests.get(url="https://api.github.com/repos/uilianries/tomahawk-bot/contents/database%2Ejson",
-                                headers=headers, params=params)
+        response = requests.get(url=self._database_url, headers=headers, params=params)
         if not response.ok:
             self.logger.error("Could not read DB")
             raise Exception(response)
@@ -315,8 +321,7 @@ class Sharkatzor(discord.Client):
     def _get_db_sha(self):
         headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
         params = {"ref": "database"}
-        response = requests.get(url="https://api.github.com/repos/uilianries/tomahawk-bot/contents/database%2Ejson",
-                                headers=headers, params=params)
+        response = requests.get(url=self._database_url, headers=headers, params=params)
         data = response.json()
         return data["sha"]
 
@@ -345,6 +350,12 @@ class Sharkatzor(discord.Client):
             await self._write_db()
 
     async def on_message(self, message):
+        await self._remove_twitch_message(message)
+
+    async def on_message_edit(self, _, message):
+        await self._remove_twitch_message(message)
+
+    async def _remove_twitch_message(self, message):
         self.logger.debug(f"#{message.channel.name}: {message.content}")
         if message.channel.id == GENERAL_CHANNEL_ID and message.embeds:
             for embed in message.embeds:
@@ -352,7 +363,7 @@ class Sharkatzor(discord.Client):
                     if message.author.id not in DISCORD_ALLOWED_USERS and not any(role.id in DISCORD_ALLOWED_ROLES for role in message.author.roles):
                         self.logger.warning(f"Delete message - #{message.author.name}: {message.content}")
                         await message.delete()
-                        await self.channel.send(f"{message.author.mention} favor utilizar o canal #divulgações para postar link da Twitch.")
+                        await self.channel.send(f"{message.author.mention} favor utilizar o canal {self.shared_channel.mention} para postar link da Twitch.")
 
 
 if __name__ == "__main__":
@@ -362,6 +373,8 @@ if __name__ == "__main__":
         raise ValueError("GENERAL_CHANNEL_ID is missing")
     if not PRIVATE_CHANNEL_ID:
         raise ValueError("PRIVATE_CHANNEL_ID is missing")
+    if not SHARED_CHANNEL_ID:
+        raise ValueError("SHARED_CHANNEL_ID is missing")
     if not TWITCH_CLIENT_ID:
         raise ValueError("TWITCH_CLIENT_ID is missing")
     if not TWITCH_CLIENT_SECRET:
