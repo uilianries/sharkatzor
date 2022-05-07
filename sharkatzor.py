@@ -361,14 +361,15 @@ class Sharkatzor(discord.Client):
 
     async def _remove_twitch_message(self, message):
         self.logger.debug(f"#{message.channel.name}: {message.content}")
-        if message.channel.id == GENERAL_CHANNEL_ID and message.embeds:
-            for embed in message.embeds:
-                if ("//www.twitch.tv/" in embed.url or "//twitch.tv/" in embed.url) and "twitch.tv/tomahawk_aoe" not in embed.url:
-                    if message.author.id not in DISCORD_ALLOWED_USERS and not any(role.id in DISCORD_ALLOWED_ROLES for role in message.author.roles):
-                        self.logger.warning(f"Delete message - #{message.author.name}: {message.content}")
-                        await message.delete()
-                        await self.channel.send(f"{message.author.mention} favor utilizar o canal {self.shared_channel.mention} para postar link da Twitch.")
         if message.embeds:
+            if message.channel.id == GENERAL_CHANNEL_ID:
+                for embed in message.embeds:
+                    if ("//www.twitch.tv/" in embed.url or "//twitch.tv/" in embed.url) and "twitch.tv/tomahawk_aoe" not in embed.url:
+                        if message.author.id not in DISCORD_ALLOWED_USERS and not any(role.id in DISCORD_ALLOWED_ROLES for role in message.author.roles):
+                            self.logger.warning(f"Delete message - #{message.author.name}: {message.content}")
+                            await message.delete()
+                            await self.channel.send(f"{message.author.mention} favor utilizar o canal {self.shared_channel.mention} para postar link da Twitch.")
+                            return
             if "free distribution of discord nitro" in str(message.content).lower():
                 self.logger.warning(f"Delete message - #{message.author.name}: {message.content}")
                 await message.delete()
