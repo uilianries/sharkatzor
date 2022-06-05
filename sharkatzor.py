@@ -1,13 +1,13 @@
 from discord.ext import tasks
 import discord
 import requests
-import scrapetube
+import googleapiclient.discovery
+
 import logging
 import json
 import os
 import base64
 import asyncio
-import traceback
 from copy import copy
 from datetime import datetime
 
@@ -26,6 +26,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 DISCORD_ALLOWED_ROLES = [int(it) for it in os.getenv("DISCORD_ALLOWED_ROLES", "0").split(",")]
 DISCORD_ALLOWED_USERS = [int(it) for it in os.getenv("DISCORD_ALLOWED_USERS", "0").split(",")]
 DATABASE_PATH = os.getenv("DATABASE_PATH", "database.json")
+GCP_API_KEY = os.getenv("GCP_API_KEY", None)
 RETRY_MAX = 5
 RETRY_TIME_INTERNAL = 10
 
@@ -49,9 +50,9 @@ class Video(object):
         self.id = id
         self.title = title
         if json_data:
-            self.id = json_data["videoId"]
+            self.id = json_data["id"]["videoId"]
             try:
-                self.title = json_data["title"]["runs"][0]["text"]
+                self.title = json_data["snippet"]["title"]
             except Exception:
                 self.title = ""
 
@@ -72,7 +73,6 @@ class Video(object):
         result = cls.__new__(cls)
         result.__dict__.update(self.__dict__)
         return result
-
 
     @property
     def link(self):
@@ -183,6 +183,7 @@ class Sharkatzor(discord.Client):
         self.db_entry = None
         self.live = None
         self.video = None
+        self.youtube = None
 
         self.logger.info(f'Twitch channel: {TWITCH_CHANNEL}')
         self.logger.info(f'Youtube channel ID: {YOUTUBE_CHANNEL_ID}')
@@ -210,6 +211,7 @@ class Sharkatzor(discord.Client):
         self.shared_channel = self.get_channel(SHARED_CHANNEL_ID)
         self.logger.info(f"Started as `{self.user}`.")
         await self._login_twitch()
+        await self._login_youtube()
 
     @tasks.loop(seconds=TIME_INTERVAL_SECONDS)
     async def background_task(self):
@@ -222,16 +224,33 @@ class Sharkatzor(discord.Client):
         self.logger.debug("Running before_task")
         await self.wait_until_ready()
 
+    async def _login_youtube(self):
+        self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY)
+        request = self.youtube.search().list(part="id", channelId=YOUTUBE_CHANNEL_ID)
+        if not request.execute():
+            message = "Could not login on Youtube!"
+            self.logger.error(message)
+            await self.private_channel.send(message)
+            raise Exception(message)
+
     async def _get_newest_video(self):
-        videos = scrapetube.get_channel(channel_id=YOUTUBE_CHANNEL_ID, limit=1, sort_by="newest")
-        if not videos:
+        request = self.youtube.search().list(part="id,snippet",
+                                        type="video",
+                                        channelId=YOUTUBE_CHANNEL_ID,
+                                        maxResults=1,
+                                        regionCode="BR",
+                                        order="date",
+                                        fields="items(id(videoId),snippet(title))")
+
+        response = request.execute()
+        if not response:
             message = f"Could not scrap YT channel {YOUTUBE_CHANNEL_ID}!"
             self.logger.error(message)
             await self.private_channel.send(message)
             return None
 
-        video = next(videos)
-        self.logger.debug("Latest video on YT: {}".format(video["videoId"]))
+        video = response["items"][0]
+        self.logger.debug("Latest video on YT: {}".format(video["id"]["videoId"]))
         return video
 
     async def _is_alive(self):
@@ -331,7 +350,8 @@ class Sharkatzor(discord.Client):
 
     async def publish_new_video(self):
         self.logger.debug("On publish_new_video")
-        current_video = Video(json_data=await self._get_newest_video())
+        video_data = await self._get_newest_video()
+        current_video = Video(json_data=video_data)
         if self.video is None:
             self.video = current_video
         elif self.video != current_video:
@@ -392,5 +412,7 @@ if __name__ == "__main__":
         raise ValueError("TWITCH_CLIENT_SECRET is missing")
     if not GITHUB_TOKEN:
         raise ValueError("GITHUB_TOKEN is missing")
+    if not GCP_API_KEY:
+        raise ValueError("GCP_API_KEY is missing")
     client = Sharkatzor()
     client.run(DISCORD_TOKEN)
