@@ -22,6 +22,7 @@ TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET", None)
 YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID", "UCJ0vp6VTn7JuFNEMj5YIRcQ")
 TIME_INTERVAL_SECONDS = int(os.getenv("TIME_INTERVAL_SECONDS", 60))
 TWITCH_COOLDOWN = int(os.getenv("TWITCH_COOLDOWN", 6))
+DISCORD_COOLDOWN = int(os.getenv("DISCORD_COOLDOWN", 5))
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 DISCORD_ALLOWED_ROLES = [int(it) for it in os.getenv("DISCORD_ALLOWED_ROLES", "0").split(",")]
 DISCORD_ALLOWED_USERS = [int(it) for it in os.getenv("DISCORD_ALLOWED_USERS", "0").split(",")]
@@ -46,9 +47,10 @@ class SharkatzorError(Exception):
 
 
 class Video(object):
-    def __init__(self, id=None, title=None, json_data=None):
+    def __init__(self, id=None, title=None, json_data=None, time=None):
         self.id = id
         self.title = title
+        self.time = time
         if json_data:
             self.id = json_data["id"]["videoId"]
             try:
@@ -81,6 +83,14 @@ class Video(object):
     @staticmethod
     def generate(json_data):
         return Video(json_data["yt_id"], json_data["yt_title"])
+
+    def is_stale(self):
+        if self.time is None:
+            return True
+        now = datetime.now()
+        diff = now - self.time
+        diff_minutes = diff.total_seconds() / 60
+        return diff_minutes > DISCORD_COOLDOWN
 
 
 class Live(object):
@@ -189,6 +199,7 @@ class Sharkatzor(discord.Client):
         self.logger.info(f'Youtube channel ID: {YOUTUBE_CHANNEL_ID}')
         self.logger.info(f'Loop interval (secs): {TIME_INTERVAL_SECONDS}')
         self.logger.info(f'Twitch cooldown (hours): {TWITCH_COOLDOWN}')
+        self.logger.info(f'Discord cooldown (minutes): {DISCORD_COOLDOWN}')
         self.logger.info('Discord Token: {}****'.format(DISCORD_TOKEN[:4]))
         self.logger.info('General Discord channel: {}****'.format(str(GENERAL_CHANNEL_ID)[:4]))
         self.logger.info('Private Discord channel: {}****'.format(str(PRIVATE_CHANNEL_ID)[:4]))
@@ -241,7 +252,6 @@ class Sharkatzor(discord.Client):
                                         regionCode="BR",
                                         order="date",
                                         fields="items(id(videoId),snippet(title))")
-
         response = request.execute()
         if not response:
             message = f"Could not scrap YT channel {YOUTUBE_CHANNEL_ID}!"
@@ -350,8 +360,11 @@ class Sharkatzor(discord.Client):
 
     async def publish_new_video(self):
         self.logger.debug("On publish_new_video")
+        if self.video and not self.video.is_stale():
+            self.logger.debug(f"Waiting for youtube cooldown")
+            return
         video_data = await self._get_newest_video()
-        current_video = Video(json_data=video_data)
+        current_video = Video(json_data=video_data, time=datetime.now())
         if self.video is None:
             self.video = current_video
         elif self.video != current_video:
@@ -380,12 +393,11 @@ class Sharkatzor(discord.Client):
         await self._remove_twitch_message(message)
 
     async def _remove_twitch_message(self, message):
-        self.logger.debug(f"#{message.channel.name}: {message.content}")
         if message.embeds:
-            if message.channel.id == GENERAL_CHANNEL_ID:
-                for embed in message.embeds:
-                    if ("//www.twitch.tv/" in embed.url or "//twitch.tv/" in embed.url) and "twitch.tv/tomahawk_aoe" not in embed.url:
-                        if message.author.id not in DISCORD_ALLOWED_USERS and not any(role.id in DISCORD_ALLOWED_ROLES for role in message.author.roles):
+            if message.author.id not in DISCORD_ALLOWED_USERS and not any(role.id in DISCORD_ALLOWED_ROLES for role in message.author.roles):
+                if message.channel.id == GENERAL_CHANNEL_ID:
+                    for embed in message.embeds:
+                        if ("//www.twitch.tv/" in embed.url or "//twitch.tv/" in embed.url) and "twitch.tv/tomahawk_aoe" not in embed.url:
                             self.logger.warning(f"Delete message - #{message.author.name}: {message.content}")
                             await message.delete()
                             await self.channel.send(f"{message.author.mention} favor utilizar o canal {self.shared_channel.mention} para postar link da Twitch.")
