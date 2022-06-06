@@ -263,7 +263,7 @@ class Sharkatzor(discord.Client):
             except HttpError as err:
                 self.logger.error(err.reason)
                 pass
-        self.logger.error("Could not login on YT! Giving up!")
+        raise SharkatzorError("Could not login on YT! Giving up!")
 
     async def _get_newest_video(self):
         try:
@@ -283,7 +283,8 @@ class Sharkatzor(discord.Client):
             return video
         except HttpError as err:
             self.logger.error(err.reason)
-            await self._login_youtube()
+        except SharkatzorError as err:
+            self.logger.error(err.message)
 
     async def _is_alive(self):
         if not await self._is_logged_in():
