@@ -285,6 +285,7 @@ class Sharkatzor(discord.Client):
             return video
         except HttpError as err:
             self.logger.error(err.reason)
+            await self._login_youtube()
 
     async def _is_alive(self):
         if not await self._is_logged_in():
