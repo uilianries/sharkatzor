@@ -10,6 +10,7 @@ import base64
 import asyncio
 from copy import copy
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", None)
@@ -28,6 +29,7 @@ DISCORD_ALLOWED_ROLES = [int(it) for it in os.getenv("DISCORD_ALLOWED_ROLES", "0
 DISCORD_ALLOWED_USERS = [int(it) for it in os.getenv("DISCORD_ALLOWED_USERS", "0").split(",")]
 DATABASE_PATH = os.getenv("DATABASE_PATH", "database.json")
 GCP_API_KEY = os.getenv("GCP_API_KEY", None)
+DND_INTERVAL = os.getenv("DND_INTERVAL", "00,09")
 RETRY_MAX = 5
 RETRY_TIME_INTERNAL = 10
 
@@ -227,6 +229,10 @@ class Sharkatzor(discord.Client):
     @tasks.loop(seconds=TIME_INTERVAL_SECONDS)
     async def background_task(self):
         self.logger.debug("Pooling task")
+        dnd = await self._do_not_disturb()
+        if dnd:
+            self.logger.info("DND interval, skipping operations.")
+            return
         await self.publish_new_video()
         await self.publish_live()
 
@@ -407,6 +413,11 @@ class Sharkatzor(discord.Client):
                 await message.delete()
                 await message.author.kick("Usuário caiu no golpe do litrão e enviou phising no servidor.")
                 await self.private_channel.send(f"Usuário {message.author.mention} caiu no golpe do litrão. Mensagem removida e usuário kickado.")
+
+    async def _do_not_disturb(self):
+        now = datetime.now(tz=ZoneInfo("America/Sao_Paulo"))
+        min, max = DND_INTERVAL.split(",")
+        return int(min) <= now.hour <= int(max)
 
 
 if __name__ == "__main__":
