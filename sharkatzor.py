@@ -24,7 +24,7 @@ TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET", None)
 YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID", "UCJ0vp6VTn7JuFNEMj5YIRcQ")
 TIME_INTERVAL_SECONDS = int(os.getenv("TIME_INTERVAL_SECONDS", 60))
 TWITCH_COOLDOWN = int(os.getenv("TWITCH_COOLDOWN", 6))
-DISCORD_COOLDOWN = int(os.getenv("DISCORD_COOLDOWN", 5))
+DISCORD_COOLDOWN = int(os.getenv("DISCORD_COOLDOWN", 6))
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 DISCORD_ALLOWED_ROLES = [int(it) for it in os.getenv("DISCORD_ALLOWED_ROLES", "0").split(",")]
 DISCORD_ALLOWED_USERS = [int(it) for it in os.getenv("DISCORD_ALLOWED_USERS", "0").split(",")]
@@ -92,8 +92,8 @@ class Video(object):
             return True
         now = datetime.now()
         diff = now - self.time
-        diff_minutes = diff.total_seconds() / 60
-        return diff_minutes > DISCORD_COOLDOWN
+        diff_hours = diff.total_seconds() / 3600
+        return diff_hours > DISCORD_COOLDOWN
 
 
 class Live(object):
@@ -202,7 +202,7 @@ class Sharkatzor(discord.Client):
         self.logger.info(f'Youtube channel ID: {YOUTUBE_CHANNEL_ID}')
         self.logger.info(f'Loop interval (secs): {TIME_INTERVAL_SECONDS}')
         self.logger.info(f'Twitch cooldown (hours): {TWITCH_COOLDOWN}')
-        self.logger.info(f'Discord cooldown (minutes): {DISCORD_COOLDOWN}')
+        self.logger.info(f'Discord cooldown (hours): {DISCORD_COOLDOWN}')
         self.logger.info('Discord Token: {}****'.format(DISCORD_TOKEN[:4]))
         self.logger.info('General Discord channel: {}****'.format(str(GENERAL_CHANNEL_ID)[:4]))
         self.logger.info('Private Discord channel: {}****'.format(str(PRIVATE_CHANNEL_ID)[:4]))
