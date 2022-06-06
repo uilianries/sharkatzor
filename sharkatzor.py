@@ -55,9 +55,9 @@ class Video(object):
         self.title = title
         self.time = time
         if json_data:
-            self.id = json_data["id"]["videoId"]
+            self.id = json_data["resourceId"]["videoId"]
             try:
-                self.title = json_data["snippet"]["title"]
+                self.title = json_data["title"]
             except Exception:
                 self.title = ""
 
@@ -197,6 +197,7 @@ class Sharkatzor(discord.Client):
         self.live = None
         self.video = None
         self.youtube = None
+        self.playlist = None
 
         self.logger.info(f'Twitch channel: {TWITCH_CHANNEL}')
         self.logger.info(f'Youtube channel ID: {YOUTUBE_CHANNEL_ID}')
@@ -250,38 +251,35 @@ class Sharkatzor(discord.Client):
                 self.youtube = None
                 self.logger.info("Connecting to YT with key {}****".format(key[:8]))
                 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=key)
-                request = youtube.search().list(part="id", channelId=YOUTUBE_CHANNEL_ID)
-                if not request.execute():
+                request = youtube.channels().list(part="id,contentDetails", id=YOUTUBE_CHANNEL_ID, maxResults=1)
+                response = request.execute()
+                if not response:
                     message = "Could not login on Youtube!"
                     self.logger.error(message)
-                self.logger.info(f"Logged in on youtube")
                 self.youtube = youtube
+                self.playlist = response["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+                self.logger.info(f"Logged-in on youtube, Playlist ID: {self.playlist}")
                 return
             except HttpError as err:
                 self.logger.error(err.reason)
                 pass
-        raise SharkatzorError("Could not login on YT!")
+        self.logger.error("Could not login on YT! Giving up!")
 
     async def _get_newest_video(self):
         try:
             if self.youtube is None:
                 await self._login_youtube()
-            request = self.youtube.search().list(part="id,snippet",
-                                            type="video",
-                                            channelId=YOUTUBE_CHANNEL_ID,
-                                            maxResults=1,
-                                            regionCode="BR",
-                                            order="date",
-                                            fields="items(id(videoId),snippet(title))")
+            request = self.youtube.playlistItems().list(part="id,snippet",
+                                                        playlistId=self.playlist,
+                                                        maxResults=1)
             response = request.execute()
             if not response:
                 message = f"Could not scrap YT channel {YOUTUBE_CHANNEL_ID}!"
                 self.logger.error(message)
                 await self.private_channel.send(message)
                 return None
-
-            video = response["items"][0]
-            self.logger.debug("Latest video on YT: {}".format(video["id"]["videoId"]))
+            video = response["items"][0]["snippet"]
+            self.logger.debug("Latest video on YT: {}".format(video["resourceId"]["videoId"]))
             return video
         except HttpError as err:
             self.logger.error(err.reason)
