@@ -244,44 +244,47 @@ class Sharkatzor(discord.Client):
         await self.wait_until_ready()
 
     async def _login_youtube(self):
+        self.logger.debug("Executing YT login")
         for index in range(0, len(GCP_API_KEY)):
             try:
-                self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[0])
-                request = self.youtube.search().list(part="id", channelId=YOUTUBE_CHANNEL_ID)
+                self.youtube = None
+                youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[0])
+                request = youtube.search().list(part="id", channelId=YOUTUBE_CHANNEL_ID)
                 if not request.execute():
                     message = "Could not login on Youtube!"
                     self.logger.error(message)
                 self.logger.info(f"Logged in on youtube, retry ({index})")
+                self.youtube = youtube
                 return
             except HttpError as err:
                 self.logger.error(err.reason)
                 self.logger.info("Connecting to YT with key {}".format(GCP_API_KEY[index][:4]))
                 self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[index])
+        raise SharkatzorError("Could not login on YT!")
 
     async def _get_newest_video(self):
-        for index in range(0, len(GCP_API_KEY)):
-            try:
-                request = self.youtube.search().list(part="id,snippet",
-                                                type="video",
-                                                channelId=YOUTUBE_CHANNEL_ID,
-                                                maxResults=1,
-                                                regionCode="BR",
-                                                order="date",
-                                                fields="items(id(videoId),snippet(title))")
-                response = request.execute()
-                if not response:
-                    message = f"Could not scrap YT channel {YOUTUBE_CHANNEL_ID}!"
-                    self.logger.error(message)
-                    await self.private_channel.send(message)
-                    return None
+        try:
+            if self.youtube is None:
+                await self._login_youtube()
+            request = self.youtube.search().list(part="id,snippet",
+                                            type="video",
+                                            channelId=YOUTUBE_CHANNEL_ID,
+                                            maxResults=1,
+                                            regionCode="BR",
+                                            order="date",
+                                            fields="items(id(videoId),snippet(title))")
+            response = request.execute()
+            if not response:
+                message = f"Could not scrap YT channel {YOUTUBE_CHANNEL_ID}!"
+                self.logger.error(message)
+                await self.private_channel.send(message)
+                return None
 
-                video = response["items"][0]
-                self.logger.debug("Latest video on YT: {} - retry({})".format(video["id"]["videoId"]), index)
-                return video
-            except HttpError as err:
-                self.logger.error(err.reason)
-                self.logger.info("Connecting to YT with key {}".format(GCP_API_KEY[index][:4]))
-                self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[index])
+            video = response["items"][0]
+            self.logger.debug("Latest video on YT: {}".format(video["id"]["videoId"]))
+            return video
+        except HttpError as err:
+            self.logger.error(err.reason)
 
     async def _is_alive(self):
         if not await self._is_logged_in():
