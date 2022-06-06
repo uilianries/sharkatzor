@@ -29,7 +29,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 DISCORD_ALLOWED_ROLES = [int(it) for it in os.getenv("DISCORD_ALLOWED_ROLES", "0").split(",")]
 DISCORD_ALLOWED_USERS = [int(it) for it in os.getenv("DISCORD_ALLOWED_USERS", "0").split(",")]
 DATABASE_PATH = os.getenv("DATABASE_PATH", "database.json")
-GCP_API_KEY = os.getenv("GCP_API_KEY", []).split(",")
+GCP_API_KEYS = os.getenv("GCP_API_KEYS", []).split(",")
 DND_INTERVAL = os.getenv("DND_INTERVAL", "00,09")
 RETRY_MAX = 5
 RETRY_TIME_INTERNAL = 10
@@ -210,7 +210,7 @@ class Sharkatzor(discord.Client):
         self.logger.info(f'Allowed Discord users: {DISCORD_ALLOWED_USERS}')
         self.logger.info(f'Allowed Discord roles: {DISCORD_ALLOWED_ROLES}')
         self.logger.info('Github Token: {}****'.format(str(GITHUB_TOKEN)[:4]))
-        self.logger.info('Youtube keys: {}'.format(len(GCP_API_KEY)))
+        self.logger.info('Youtube keys: {}'.format(len(GCP_API_KEYS)))
 
         self.logger.info("Reading DB ...")
         self._read_db()
@@ -245,10 +245,10 @@ class Sharkatzor(discord.Client):
 
     async def _login_youtube(self):
         self.logger.debug("Executing YT login")
-        for key in GCP_API_KEY:
+        for key in GCP_API_KEYS:
             try:
                 self.youtube = None
-                self.logger.info("Connecting to YT with key {}****".format(key[:4]))
+                self.logger.info("Connecting to YT with key {}****".format(key[:8]))
                 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=key)
                 request = youtube.search().list(part="id", channelId=YOUTUBE_CHANNEL_ID)
                 if not request.execute():
@@ -455,7 +455,7 @@ if __name__ == "__main__":
         raise ValueError("TWITCH_CLIENT_SECRET is missing")
     if not GITHUB_TOKEN:
         raise ValueError("GITHUB_TOKEN is missing")
-    if not GCP_API_KEY:
-        raise ValueError("GCP_API_KEY is missing")
+    if not GCP_API_KEYS:
+        raise ValueError("GCP_API_KEYS is missing")
     client = Sharkatzor()
     client.run(DISCORD_TOKEN)
