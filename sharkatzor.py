@@ -245,21 +245,21 @@ class Sharkatzor(discord.Client):
 
     async def _login_youtube(self):
         self.logger.debug("Executing YT login")
-        for index in range(0, len(GCP_API_KEY)):
+        for key in GCP_API_KEY:
             try:
                 self.youtube = None
-                youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[0])
+                self.logger.info("Connecting to YT with key {}****".format(key[:4]))
+                youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=key)
                 request = youtube.search().list(part="id", channelId=YOUTUBE_CHANNEL_ID)
                 if not request.execute():
                     message = "Could not login on Youtube!"
                     self.logger.error(message)
-                self.logger.info(f"Logged in on youtube, retry ({index})")
+                self.logger.info(f"Logged in on youtube")
                 self.youtube = youtube
                 return
             except HttpError as err:
                 self.logger.error(err.reason)
-                self.logger.info("Connecting to YT with key {}".format(GCP_API_KEY[index][:4]))
-                self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[index])
+                pass
         raise SharkatzorError("Could not login on YT!")
 
     async def _get_newest_video(self):
