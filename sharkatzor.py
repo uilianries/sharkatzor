@@ -10,6 +10,7 @@ import base64
 import asyncio
 from copy import copy
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", None)
@@ -27,7 +28,8 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 DISCORD_ALLOWED_ROLES = [int(it) for it in os.getenv("DISCORD_ALLOWED_ROLES", "0").split(",")]
 DISCORD_ALLOWED_USERS = [int(it) for it in os.getenv("DISCORD_ALLOWED_USERS", "0").split(",")]
 DATABASE_PATH = os.getenv("DATABASE_PATH", "database.json")
-GCP_API_KEY = os.getenv("GCP_API_KEY", None)
+GCP_API_KEY = os.getenv("GCP_API_KEY", []).split(",")
+DND_INTERVAL = os.getenv("DND_INTERVAL", "00,09")
 RETRY_MAX = 5
 RETRY_TIME_INTERNAL = 10
 
@@ -227,6 +229,10 @@ class Sharkatzor(discord.Client):
     @tasks.loop(seconds=TIME_INTERVAL_SECONDS)
     async def background_task(self):
         self.logger.debug("Pooling task")
+        dnd = await self._do_not_disturb()
+        if dnd:
+            self.logger.info("DND interval, skipping operations.")
+            return
         await self.publish_new_video()
         await self.publish_live()
 
@@ -236,7 +242,7 @@ class Sharkatzor(discord.Client):
         await self.wait_until_ready()
 
     async def _login_youtube(self):
-        self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY)
+        self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[0])
         request = self.youtube.search().list(part="id", channelId=YOUTUBE_CHANNEL_ID)
         if not request.execute():
             message = "Could not login on Youtube!"
@@ -245,23 +251,28 @@ class Sharkatzor(discord.Client):
             raise Exception(message)
 
     async def _get_newest_video(self):
-        request = self.youtube.search().list(part="id,snippet",
-                                        type="video",
-                                        channelId=YOUTUBE_CHANNEL_ID,
-                                        maxResults=1,
-                                        regionCode="BR",
-                                        order="date",
-                                        fields="items(id(videoId),snippet(title))")
-        response = request.execute()
-        if not response:
-            message = f"Could not scrap YT channel {YOUTUBE_CHANNEL_ID}!"
-            self.logger.error(message)
-            await self.private_channel.send(message)
-            return None
+        for index in range(0, len(GCP_API_KEY)):
+            try:
+                request = self.youtube.search().list(part="id,snippet",
+                                                type="video",
+                                                channelId=YOUTUBE_CHANNEL_ID,
+                                                maxResults=1,
+                                                regionCode="BR",
+                                                order="date",
+                                                fields="items(id(videoId),snippet(title))")
+                response = request.execute()
+                if not response:
+                    message = f"Could not scrap YT channel {YOUTUBE_CHANNEL_ID}!"
+                    self.logger.error(message)
+                    await self.private_channel.send(message)
+                    return None
 
-        video = response["items"][0]
-        self.logger.debug("Latest video on YT: {}".format(video["id"]["videoId"]))
-        return video
+                video = response["items"][0]
+                self.logger.debug("Latest video on YT: {}".format(video["id"]["videoId"]))
+                return video
+            except Exception as err:
+                self.logger.error(str(err))
+                self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[index])
 
     async def _is_alive(self):
         if not await self._is_logged_in():
@@ -407,6 +418,11 @@ class Sharkatzor(discord.Client):
                 await message.delete()
                 await message.author.kick("Usuário caiu no golpe do litrão e enviou phising no servidor.")
                 await self.private_channel.send(f"Usuário {message.author.mention} caiu no golpe do litrão. Mensagem removida e usuário kickado.")
+
+    async def _do_not_disturb(self):
+        now = datetime.now(tz=ZoneInfo("America/Sao_Paulo"))
+        min, max = DND_INTERVAL.split(",")
+        return int(min) <= now.hour <= int(max)
 
 
 if __name__ == "__main__":
