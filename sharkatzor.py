@@ -2,6 +2,7 @@ from discord.ext import tasks
 import discord
 import requests
 import googleapiclient.discovery
+from googleapiclient.errors import HttpError
 
 import logging
 import json
@@ -209,6 +210,7 @@ class Sharkatzor(discord.Client):
         self.logger.info(f'Allowed Discord users: {DISCORD_ALLOWED_USERS}')
         self.logger.info(f'Allowed Discord roles: {DISCORD_ALLOWED_ROLES}')
         self.logger.info('Github Token: {}****'.format(str(GITHUB_TOKEN)[:4]))
+        self.logger.info('Youtube keys: {}'.format(len(GCP_API_KEY)))
 
         self.logger.info("Reading DB ...")
         self._read_db()
@@ -251,8 +253,9 @@ class Sharkatzor(discord.Client):
                     self.logger.error(message)
                 self.logger.info(f"Logged in on youtube, retry ({index})")
                 return
-            except Exception as err:
-                self.logger.error(str(err))
+            except HttpError as err:
+                self.logger.error(err.reason)
+                self.logger.info("Connecting to YT with key {}".format(GCP_API_KEY[index][:4]))
                 self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[index])
 
     async def _get_newest_video(self):
@@ -275,15 +278,16 @@ class Sharkatzor(discord.Client):
                 video = response["items"][0]
                 self.logger.debug("Latest video on YT: {} - retry({})".format(video["id"]["videoId"]), index)
                 return video
-            except Exception as err:
-                self.logger.error(str(err))
+            except HttpError as err:
+                self.logger.error(err.reason)
+                self.logger.info("Connecting to YT with key {}".format(GCP_API_KEY[index][:4]))
                 self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[index])
 
     async def _is_alive(self):
         if not await self._is_logged_in():
             self.logger.debug("Twitch login expired")
             await self._login_twitch()
-        params = {'Client-ID' : TWITCH_CLIENT_ID, 'Authorization':  "Bearer " + self.access_token}
+        params = {'Client-ID': TWITCH_CLIENT_ID, 'Authorization':  "Bearer " + self.access_token}
         response = requests.get(f'https://api.twitch.tv/helix/streams?user_login={TWITCH_CHANNEL}', headers=params)
         if not response.ok:
             message = f"Could not fetch Twitch channel {TWITCH_CHANNEL}"
@@ -377,9 +381,12 @@ class Sharkatzor(discord.Client):
     async def publish_new_video(self):
         self.logger.debug("On publish_new_video")
         if self.video and not self.video.is_stale():
-            self.logger.debug(f"Waiting for youtube cooldown")
+            self.logger.debug("Waiting for youtube cooldown")
             return
         video_data = await self._get_newest_video()
+        if video_data is None:
+            self.logger.error("Could not request newest video")
+            return
         current_video = Video(json_data=video_data, time=datetime.now())
         if self.video is None:
             self.video = current_video
