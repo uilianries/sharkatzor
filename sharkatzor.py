@@ -249,6 +249,7 @@ class Sharkatzor(discord.Client):
                 if not request.execute():
                     message = "Could not login on Youtube!"
                     self.logger.error(message)
+                self.logger.info(f"Logged in on youtube, retry ({index})")
                 return
             except Exception as err:
                 self.logger.error(str(err))
@@ -272,7 +273,7 @@ class Sharkatzor(discord.Client):
                     return None
 
                 video = response["items"][0]
-                self.logger.debug("Latest video on YT: {}".format(video["id"]["videoId"]))
+                self.logger.debug("Latest video on YT: {} - retry({})".format(video["id"]["videoId"]), index)
                 return video
             except Exception as err:
                 self.logger.error(str(err))
