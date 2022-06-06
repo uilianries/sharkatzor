@@ -242,13 +242,17 @@ class Sharkatzor(discord.Client):
         await self.wait_until_ready()
 
     async def _login_youtube(self):
-        self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[0])
-        request = self.youtube.search().list(part="id", channelId=YOUTUBE_CHANNEL_ID)
-        if not request.execute():
-            message = "Could not login on Youtube!"
-            self.logger.error(message)
-            await self.private_channel.send(message)
-            raise Exception(message)
+        for index in range(0, len(GCP_API_KEY)):
+            try:
+                self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[0])
+                request = self.youtube.search().list(part="id", channelId=YOUTUBE_CHANNEL_ID)
+                if not request.execute():
+                    message = "Could not login on Youtube!"
+                    self.logger.error(message)
+                return
+            except Exception as err:
+                self.logger.error(str(err))
+                self.youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=GCP_API_KEY[index])
 
     async def _get_newest_video(self):
         for index in range(0, len(GCP_API_KEY)):
