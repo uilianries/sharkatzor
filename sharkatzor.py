@@ -23,6 +23,7 @@ TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID", None)
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET", None)
 YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID", "UCJ0vp6VTn7JuFNEMj5YIRcQ")
 TIME_INTERVAL_SECONDS = int(os.getenv("TIME_INTERVAL_SECONDS", 60))
+DND_INTERVAL_MINUTES = int(os.getenv("DND_INTERVAL_MINUTES", 15))
 TWITCH_COOLDOWN = int(os.getenv("TWITCH_COOLDOWN", 6))
 DISCORD_COOLDOWN = int(os.getenv("DISCORD_COOLDOWN", 6))
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
@@ -233,7 +234,9 @@ class Sharkatzor(discord.Client):
     @tasks.loop(seconds=TIME_INTERVAL_SECONDS)
     async def background_task(self):
         if await self._do_not_disturb():
-            return
+            self.background_task.change_interval(minutes=DND_INTERVAL_MINUTES)
+        else:
+            self.background_task.change_interval(seconds=TIME_INTERVAL_SECONDS)
         self.logger.debug("Pooling task")
         await self.publish_new_video()
         await self.publish_live()
@@ -437,11 +440,8 @@ class Sharkatzor(discord.Client):
         now = datetime.now(tz=ZoneInfo("America/Sao_Paulo"))
         min, max = DND_INTERVAL.split(",")
         dnd = int(min) <= now.hour <= int(max)
-        global TIME_INTERVAL_SECONDS
-        TIME_INTERVAL_SECONDS = self.loop_interval
         if dnd:
             self.logger.debug(f"DND interval: ({min}) <= ({now.hour:02d}:{now.minute:02d}) <= ({max})")
-            TIME_INTERVAL_SECONDS = 60 * 15
         return dnd
 
 
