@@ -198,6 +198,7 @@ class Sharkatzor(discord.Client):
         self.video = None
         self.youtube = None
         self.playlist = None
+        self.loop_interval = TIME_INTERVAL_SECONDS
 
         self.logger.info(f'Twitch channel: {TWITCH_CHANNEL}')
         self.logger.info(f'Youtube channel ID: {YOUTUBE_CHANNEL_ID}')
@@ -231,11 +232,9 @@ class Sharkatzor(discord.Client):
 
     @tasks.loop(seconds=TIME_INTERVAL_SECONDS)
     async def background_task(self):
-        self.logger.debug("Pooling task")
-        dnd = await self._do_not_disturb()
-        if dnd:
-            self.logger.info("DND interval, skipping operations.")
+        if await self._do_not_disturb():
             return
+        self.logger.debug("Pooling task")
         await self.publish_new_video()
         await self.publish_live()
 
@@ -437,7 +436,13 @@ class Sharkatzor(discord.Client):
     async def _do_not_disturb(self):
         now = datetime.now(tz=ZoneInfo("America/Sao_Paulo"))
         min, max = DND_INTERVAL.split(",")
-        return int(min) <= now.hour <= int(max)
+        dnd = int(min) <= now.hour <= int(max)
+        global TIME_INTERVAL_SECONDS
+        TIME_INTERVAL_SECONDS = self.loop_interval
+        if dnd:
+            self.logger.debug(f"DND interval: ({min}) <= ({now.hour:02d}:{now.minute:02d}) <= ({max})")
+            TIME_INTERVAL_SECONDS = 60 * 15
+        return dnd
 
 
 if __name__ == "__main__":
