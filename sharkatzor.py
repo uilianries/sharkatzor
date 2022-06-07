@@ -237,6 +237,7 @@ class Sharkatzor(discord.Client):
         if dnd:
             self.loop_interval = DND_INTERVAL_MINUTES
             self.background_task.change_interval(minutes=self.loop_interval)
+            return
         elif not dnd and self.loop_interval == DND_INTERVAL_MINUTES:
             self.loop_interval = TIME_INTERVAL_SECONDS
             self.background_task.change_interval(seconds=self.loop_interval)
