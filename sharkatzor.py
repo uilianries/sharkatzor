@@ -233,10 +233,13 @@ class Sharkatzor(discord.Client):
 
     @tasks.loop(seconds=TIME_INTERVAL_SECONDS)
     async def background_task(self):
-        if await self._do_not_disturb():
-            self.background_task.change_interval(minutes=DND_INTERVAL_MINUTES)
-        else:
-            self.background_task.change_interval(seconds=TIME_INTERVAL_SECONDS)
+        dnd = await self._do_not_disturb()
+        if dnd:
+            self.loop_interval = DND_INTERVAL_MINUTES
+            self.background_task.change_interval(minutes=self.loop_interval)
+        elif not dnd and self.loop_interval == DND_INTERVAL_MINUTES:
+            self.loop_interval = TIME_INTERVAL_SECONDS
+            self.background_task.change_interval(seconds=self.loop_interval)
         self.logger.debug("Pooling task")
         await self.publish_new_video()
         await self.publish_live()
