@@ -435,11 +435,14 @@ class Sharkatzor(discord.Client):
                             await message.delete()
                             await self.channel.send(f"{message.author.mention} favor utilizar o canal {self.shared_channel.mention} para postar link da Twitch.")
                             return
-            if "free distribution of discord nitro" in str(message.content).lower():
-                self.logger.warning(f"Delete message - #{message.author.name}: {message.content}")
-                await message.delete()
-                await message.author.kick("Usuário caiu no golpe do litrão e enviou phising no servidor.")
-                await self.private_channel.send(f"Usuário {message.author.mention} caiu no golpe do litrão. Mensagem removida e usuário kickado.")
+            phishing_links = ["free distribution of discord nitro", "free nitro"]
+            for message in phishing_links:
+                if message in str(message.content).lower():
+                    self.logger.warning(f"Delete message - #{message.author.name}: {message.content}")
+                    await message.delete()
+                    await message.author.kick("Usuário caiu no golpe do litrão e enviou phising no servidor.")
+                    await self.private_channel.send(f"Usuário {message.author.mention} caiu no golpe do litrão. Mensagem removida e usuário kickado.")
+                    break
 
     async def _do_not_disturb(self):
         now = datetime.now(tz=ZoneInfo("America/Sao_Paulo"))
