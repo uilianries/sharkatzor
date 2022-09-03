@@ -1,0 +1,6 @@
+services:
+  - name: sharkatzor
+    type: web
+    env: python
+    repo: https://github.com/uilianries/tomahawk-bot
+    startCommand: python sharkatzor.py
