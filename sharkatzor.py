@@ -489,7 +489,7 @@ class Sharkatzor(discord.Client):
         return dnd
 
 
-if __name__ == "__main__":
+def main():
     if not DISCORD_TOKEN:
         raise ValueError("DISCORD_TOKEN is missing")
     if not GENERAL_CHANNEL_ID:
@@ -508,3 +508,7 @@ if __name__ == "__main__":
         raise ValueError("GCP_API_KEYS is missing")
     client = Sharkatzor()
     client.run(DISCORD_TOKEN)
+
+
+if __name__ == "__main__":
+    main()
