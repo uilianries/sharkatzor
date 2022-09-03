@@ -3,7 +3,7 @@ import discord
 import requests
 import googleapiclient.discovery
 from googleapiclient.errors import HttpError
-from http.server import SimpleHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler
 from socketserver import TCPServer
 from threading import Thread
 
@@ -192,16 +192,22 @@ class DBEntry(object):
 
 class HTTPServer(object):
 
+    class RequestHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(bytes('{"status": "OK"}', "utf-8"))
+
+    class DummyServer(TCPServer):
+        allow_reuse_address = True
+
     def __init__(self) -> None:
         self.logger = LOGGER
         self.port = 80
         self.httpd_thread = None
-        Handler = SimpleHTTPRequestHandler
-
-        class TestServer(TCPServer):
-            allow_reuse_address = True
-
-        self.httpd = TestServer(("", self.port), Handler)
+        self.handler = HTTPServer.RequestHandler
+        self.httpd = HTTPServer.DummyServer(("", self.port), self.handler)
 
     def run(self):
         self.logger.info(f'Serving test HTTP server at port {self.port}')
