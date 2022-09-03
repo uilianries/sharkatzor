@@ -216,6 +216,7 @@ class Sharkatzor(discord.Client):
         self.logger.info('Github Token: {}****'.format(str(GITHUB_TOKEN)[:4]))
         self.logger.info('Youtube keys: {}'.format(len(GCP_API_KEYS)))
 
+    async def setup_hook(self) -> None:
         self.logger.info("Reading DB ...")
         self._read_db()
         self.logger.debug(f"Latest video: {self.video}")
