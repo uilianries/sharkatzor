@@ -14,10 +14,7 @@ import base64
 import asyncio
 from copy import copy
 from datetime import datetime
-try:
-    import zoneinfo
-except (ImportError, ModuleNotFoundError) as error:
-    from backports import zoneinfo
+from zoneinfo import ZoneInfo
 
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", None)
@@ -509,9 +506,9 @@ def server(server_class=HTTPServer, handler_class=RequestHandler, port=8000):
 
 
 def main():
-    thread = Thread(target=sharkatzor_run)
+    thread = Thread(target=server)
     thread.start()
-    server()
+    sharkatzor_run()
     thread.join()
 
 
