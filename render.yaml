@@ -3,4 +3,4 @@ services:
     type: web
     env: python
     repo: https://github.com/uilianries/tomahawk-bot
-    startCommand: python sharkatzor.py
+    startCommand: gunicorn sharkatzor:main
