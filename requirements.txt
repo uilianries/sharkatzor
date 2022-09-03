@@ -1,3 +1,4 @@
 discord
 requests
 google-api-python-client
+backports.zoneinfo
