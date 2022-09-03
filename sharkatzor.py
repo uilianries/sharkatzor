@@ -233,7 +233,6 @@ class Sharkatzor(discord.Client):
         self.youtube = None
         self.playlist = None
         self.loop_interval = TIME_INTERVAL_SECONDS
-        self.http_server = HTTPServer()
 
         self.logger.info(f'Twitch channel: {TWITCH_CHANNEL}')
         self.logger.info(f'Youtube channel ID: {YOUTUBE_CHANNEL_ID}')
@@ -264,7 +263,6 @@ class Sharkatzor(discord.Client):
         self.logger.info(f"Started as `{self.user}`.")
         await self._login_twitch()
         await self._login_youtube()
-        self.http_server.run()
 
     @tasks.loop(seconds=TIME_INTERVAL_SECONDS)
     async def background_task(self):
