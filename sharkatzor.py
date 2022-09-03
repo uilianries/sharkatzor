@@ -13,7 +13,7 @@ from copy import copy
 from datetime import datetime
 try:
     import zoneinfo
-except ImportError:
+except (ImportError, ModuleNotFoundError) as error:
     from backports import zoneinfo
 
 
