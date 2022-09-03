@@ -237,6 +237,7 @@ class Sharkatzor(discord.Client):
 
     @tasks.loop(seconds=TIME_INTERVAL_SECONDS)
     async def background_task(self):
+        self.logger.debug("On Background task")
         dnd = await self._do_not_disturb()
         if dnd:
             if self.loop_interval == TIME_INTERVAL_SECONDS:
