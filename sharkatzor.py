@@ -11,7 +11,10 @@ import base64
 import asyncio
 from copy import copy
 from datetime import datetime
-from zoneinfo import ZoneInfo
+try:
+    import zoneinfo
+except ImportError:
+    from backports import zoneinfo
 
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", None)
