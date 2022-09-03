@@ -3,6 +3,9 @@ import discord
 import requests
 import googleapiclient.discovery
 from googleapiclient.errors import HttpError
+from http.server import SimpleHTTPRequestHandler
+from socketserver import TCPServer
+from threading import Thread
 
 import logging
 import json
@@ -187,6 +190,26 @@ class DBEntry(object):
         return DBEntry(video, live)
 
 
+class HTTPServer(object):
+
+    def __init__(self) -> None:
+        self.logger = LOGGER
+        self.port = 80
+        self.httpd_thread = None
+        Handler = SimpleHTTPRequestHandler
+
+        class TestServer(TCPServer):
+            allow_reuse_address = True
+
+        self.httpd = TestServer(("", self.port), Handler)
+
+    def run(self):
+        self.logger.info(f'Serving test HTTP server at port {self.port}')
+        self.httpd_thread = Thread(target=self.httpd.serve_forever)
+        self.httpd_thread.setDaemon(True)
+        self.httpd_thread.start()
+
+
 class Sharkatzor(discord.Client):
     def __init__(self, *args, **kwargs):
         intents = discord.Intents.default()
@@ -204,6 +227,7 @@ class Sharkatzor(discord.Client):
         self.youtube = None
         self.playlist = None
         self.loop_interval = TIME_INTERVAL_SECONDS
+        self.http_server = HTTPServer()
 
         self.logger.info(f'Twitch channel: {TWITCH_CHANNEL}')
         self.logger.info(f'Youtube channel ID: {YOUTUBE_CHANNEL_ID}')
@@ -234,6 +258,7 @@ class Sharkatzor(discord.Client):
         self.logger.info(f"Started as `{self.user}`.")
         await self._login_twitch()
         await self._login_youtube()
+        self.http_server.run()
 
     @tasks.loop(seconds=TIME_INTERVAL_SECONDS)
     async def background_task(self):
