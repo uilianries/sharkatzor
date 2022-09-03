@@ -3,9 +3,6 @@ import discord
 import requests
 import googleapiclient.discovery
 from googleapiclient.errors import HttpError
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from socketserver import TCPServer
-from threading import Thread
 
 import logging
 import json
@@ -479,37 +476,8 @@ def sharkatzor_run():
     client.run(DISCORD_TOKEN)
 
 
-class RequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        LOGGER.debug(f"GET request: {self.path}")
-        self.send_response(200)
-        self.send_header("Content-type", "application/json")
-        self.end_headers()
-        self.wfile.write(bytes('{"status": "OK"}', "utf-8"))
-
-    def do_POST(self):
-        LOGGER.debug(f"POST request: {self.path}")
-        self.send_response(200)
-        self.send_header("Content-type", "application/json")
-        self.end_headers()
-        self.wfile.write(bytes('{"status": "OK"}', "utf-8"))
-
-
-def server(server_class=HTTPServer, handler_class=RequestHandler, port=8000):
-    server_address = ('', port)
-    httpd = server_class(server_address, handler_class)
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    httpd.server_close()
-
-
 def main():
-    thread = Thread(target=server)
-    thread.start()
     sharkatzor_run()
-    thread.join()
 
 
 if __name__ == "__main__":
