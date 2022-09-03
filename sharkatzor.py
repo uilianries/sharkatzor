@@ -204,7 +204,7 @@ class HTTPServer(object):
 
     def __init__(self) -> None:
         self.logger = LOGGER
-        self.port = 80
+        self.port = 5000
         self.httpd_thread = None
         self.handler = HTTPServer.RequestHandler
         self.httpd = HTTPServer.DummyServer(("", self.port), self.handler)
