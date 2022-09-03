@@ -186,8 +186,7 @@ class DBEntry(object):
 
 class Sharkatzor(discord.Client):
     def __init__(self, *args, **kwargs):
-        intents = discord.Intents.default()
-        super().__init__(intents=intents)
+        super().__init__(*args, **kwargs)
 
         self.logger = LOGGER
         self.logger.info('Starting ...')
