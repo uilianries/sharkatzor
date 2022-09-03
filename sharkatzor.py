@@ -3,7 +3,7 @@ import discord
 import requests
 import googleapiclient.discovery
 from googleapiclient.errors import HttpError
-from http.server import BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import TCPServer
 from threading import Thread
 
@@ -188,32 +188,6 @@ class DBEntry(object):
         video = Video(json_data["yt_id"], json_data["yt_title"])
         live = Live(Live.strtotime(json_data["tw_time"]), json_data["tw_title"])
         return DBEntry(video, live)
-
-
-class HTTPServer(object):
-
-    class RequestHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.send_header("Content-type", "application/json")
-            self.end_headers()
-            self.wfile.write(bytes('{"status": "OK"}', "utf-8"))
-
-    class DummyServer(TCPServer):
-        allow_reuse_address = True
-
-    def __init__(self) -> None:
-        self.logger = LOGGER
-        self.port = 5000
-        self.httpd_thread = None
-        self.handler = HTTPServer.RequestHandler
-        self.httpd = HTTPServer.DummyServer(("", self.port), self.handler)
-
-    def run(self):
-        self.logger.info(f'Serving test HTTP server at port {self.port}')
-        self.httpd_thread = Thread(target=self.httpd.serve_forever)
-        self.httpd_thread.setDaemon(True)
-        self.httpd_thread.start()
 
 
 class Sharkatzor(discord.Client):
@@ -487,7 +461,7 @@ class Sharkatzor(discord.Client):
         return dnd
 
 
-def main():
+def sharkatzor_run():
     if not DISCORD_TOKEN:
         raise ValueError("DISCORD_TOKEN is missing")
     if not GENERAL_CHANNEL_ID:
@@ -506,6 +480,39 @@ def main():
         raise ValueError("GCP_API_KEYS is missing")
     client = Sharkatzor()
     client.run(DISCORD_TOKEN)
+
+
+class RequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        LOGGER.debug(f"GET request: {self.path}")
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(bytes('{"status": "OK"}', "utf-8"))
+
+    def do_POST(self):
+        LOGGER.debug(f"POST request: {self.path}")
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(bytes('{"status": "OK"}', "utf-8"))
+
+
+def server(server_class=HTTPServer, handler_class=RequestHandler, port=8000):
+    server_address = ('', port)
+    httpd = server_class(server_address, handler_class)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    httpd.server_close()
+
+
+def main():
+    thread = Thread(target=sharkatzor_run)
+    thread.start()
+    server()
+    thread.join()
 
 
 if __name__ == "__main__":
