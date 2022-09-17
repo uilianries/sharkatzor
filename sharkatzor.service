@@ -1,0 +1,11 @@
+[Unit]
+Description=Sharkatzor bot as a service
+
+[Service]
+Type=idle
+Restart=always
+ExecStart=/home/orangepi/.pyenv/shims/sharkatzor
+User=orangepi
+
+[Install]
+WantedBy=multi-user.target
