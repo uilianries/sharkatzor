@@ -12,11 +12,13 @@ import json
 import os
 import base64
 import asyncio
+import configparser
 from copy import copy
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 
+SHARKTAZOR_CONF = os.getenv("SHARKATZOR_CONF", "/etc/sharkatzor.conf")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", None)
 GENERAL_CHANNEL_ID = int(os.getenv("GENERAL_CHANNEL_ID", 0))
 PRIVATE_CHANNEL_ID = int(os.getenv("PRIVATE_CHANNEL_ID", 0))
@@ -29,10 +31,9 @@ TIME_INTERVAL_SECONDS = int(os.getenv("TIME_INTERVAL_SECONDS", 60))
 DND_INTERVAL_MINUTES = int(os.getenv("DND_INTERVAL_MINUTES", 15))
 TWITCH_COOLDOWN = int(os.getenv("TWITCH_COOLDOWN", 6))
 DISCORD_COOLDOWN = int(os.getenv("DISCORD_COOLDOWN", 6))
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 DISCORD_ALLOWED_ROLES = [int(it) for it in os.getenv("DISCORD_ALLOWED_ROLES", "0").split(",")]
 DISCORD_ALLOWED_USERS = [int(it) for it in os.getenv("DISCORD_ALLOWED_USERS", "0").split(",")]
-DATABASE_PATH = os.getenv("DATABASE_PATH", "database.json")
+DATABASE_PATH = os.getenv("DATABASE_PATH", "/home/orangepi/.sharkatzor/database.json")
 GCP_API_KEYS = os.getenv("GCP_API_KEYS", []).split(",")
 DND_INTERVAL = os.getenv("DND_INTERVAL", "00,09")
 RETRY_MAX = 5
@@ -216,7 +217,6 @@ class Sharkatzor(discord.Client):
         self.logger.info('Shared  Discord channel: {}****'.format(str(SHARED_CHANNEL_ID)[:4]))
         self.logger.info(f'Allowed Discord users: {DISCORD_ALLOWED_USERS}')
         self.logger.info(f'Allowed Discord roles: {DISCORD_ALLOWED_ROLES}')
-        self.logger.info('Github Token: {}****'.format(str(GITHUB_TOKEN)[:4]))
         self.logger.info('Youtube keys: {}'.format(len(GCP_API_KEYS)))
 
     async def setup_hook(self) -> None:
@@ -356,43 +356,21 @@ class Sharkatzor(discord.Client):
                 self.logger.info(f"Twitch login expired: {response.text}")
         return False
 
-    @property
-    def _database_url(self):
-        return f"https://api.github.com/repos/uilianries/tomahawk-bot/contents/{DATABASE_PATH}"
-
     async def _write_db(self):
-        sha = self._get_db_sha()
         dbentry = DBEntry(self.video, self.live)
         self.logger.debug(f"Write DB Entry: {dbentry}")
-        headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
-        params = {"content": dbentry.b64encode(), "message": "Update DB", "branch": "database", "sha": sha}
-        response = requests.put(url=self._database_url, headers=headers, json=params)
-        if not response.ok:
-            message = f"Could not update DB: {response.text}"
-            await self.private_channel.send(message)
-            self.logger.error(message)
+        with open(DATABASE_PATH, "w") as fd:
+            fd.write(str(dbentry))
 
     def _read_db(self):
-        headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
-        params = {"ref": "database"}
-        response = requests.get(url=self._database_url, headers=headers, params=params)
-        if not response.ok:
-            self.logger.error("Could not read DB")
-            raise Exception(response)
-        content = response.json()["content"]
-        decoded = base64.b64decode(content).decode()
-        json_data = json.loads(decoded)
+        if not os.path.exists(DATABASE_PATH):
+            return
+        database_fd = open(DATABASE_PATH, 'r')
+        json_data = json.load(database_fd)
         self.db_entry = DBEntry.generate(json_data)
         self.logger.info(f"Read DB Entry: {self.db_entry}")
         self.live = copy(self.db_entry.live)
         self.video = copy(self.db_entry.video)
-
-    def _get_db_sha(self):
-        headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
-        params = {"ref": "database"}
-        response = requests.get(url=self._database_url, headers=headers, params=params)
-        data = response.json()
-        return data["sha"]
 
     async def publish_new_video(self):
         self.logger.debug("On publish_new_video")
@@ -459,7 +437,31 @@ class Sharkatzor(discord.Client):
         return dnd
 
 
+def load_configuration():
+    global DISCORD_ALLOWED_ROLES
+    global DISCORD_ALLOWED_USERS
+    global DISCORD_TOKEN
+    global GCP_API_KEYS
+    global GENERAL_CHANNEL_ID
+    global PRIVATE_CHANNEL_ID
+    global SHARED_CHANNEL_ID
+    global TWITCH_CLIENT_ID
+    global TWITCH_CLIENT_SECRET
+    config = configparser.ConfigParser()
+    config.read(SHARKTAZOR_CONF)
+    DISCORD_ALLOWED_ROLES = config["conf"]["DISCORD_ALLOWED_ROLES"]
+    DISCORD_ALLOWED_USERS = config["conf"]["DISCORD_ALLOWED_USERS"]
+    DISCORD_TOKEN = config["conf"]["DISCORD_TOKEN"]
+    GCP_API_KEYS = config["conf"]["GCP_API_KEYS"]
+    GENERAL_CHANNEL_ID = config["conf"]["GENERAL_CHANNEL_ID"]
+    PRIVATE_CHANNEL_ID = config["conf"]["PRIVATE_CHANNEL_ID"]
+    SHARED_CHANNEL_ID = config["conf"]["SHARED_CHANNEL_ID"]
+    TWITCH_CLIENT_ID = config["conf"]["TWITCH_CLIENT_ID"]
+    TWITCH_CLIENT_SECRET = config["conf"]["TWITCH_CLIENT_SECRET"]
+
+
 def main():
+    load_configuration()
     if not DISCORD_TOKEN:
         raise ValueError("DISCORD_TOKEN is missing")
     if not GENERAL_CHANNEL_ID:
@@ -472,8 +474,6 @@ def main():
         raise ValueError("TWITCH_CLIENT_ID is missing")
     if not TWITCH_CLIENT_SECRET:
         raise ValueError("TWITCH_CLIENT_SECRET is missing")
-    if not GITHUB_TOKEN:
-        raise ValueError("GITHUB_TOKEN is missing")
     if not GCP_API_KEYS:
         raise ValueError("GCP_API_KEYS is missing")
     client = Sharkatzor()
