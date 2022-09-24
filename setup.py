@@ -15,14 +15,14 @@ def get_requires(filename):
 
 def load_version():
     filename = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                            "pb", "__init__.py"))
+                                            "tomahawk", "__init__.py"))
     with open(filename, "rt") as version_file:
         file_init = version_file.read()
         version = re.search("__version__ = '([0-9a-z.-]+)'", file_init).group(1)
         return version
 
 
-project_requirements = get_requires("pb/requirements.txt")
+project_requirements = get_requires("tomahawk/requirements.txt")
 
 setup(
     name='sharkatzor',
