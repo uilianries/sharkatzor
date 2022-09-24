@@ -449,10 +449,10 @@ def load_configuration():
     global TWITCH_CLIENT_SECRET
     config = configparser.ConfigParser()
     config.read(SHARKTAZOR_CONF)
-    DISCORD_ALLOWED_ROLES = config["conf"]["DISCORD_ALLOWED_ROLES"]
-    DISCORD_ALLOWED_USERS = config["conf"]["DISCORD_ALLOWED_USERS"]
+    DISCORD_ALLOWED_ROLES = config["conf"]["DISCORD_ALLOWED_ROLES"].split(",")
+    DISCORD_ALLOWED_USERS = config["conf"]["DISCORD_ALLOWED_USERS"].split(",")
     DISCORD_TOKEN = config["conf"]["DISCORD_TOKEN"]
-    GCP_API_KEYS = config["conf"]["GCP_API_KEYS"]
+    GCP_API_KEYS = config["conf"]["GCP_API_KEYS"].split(",")
     GENERAL_CHANNEL_ID = config["conf"]["GENERAL_CHANNEL_ID"]
     PRIVATE_CHANNEL_ID = config["conf"]["PRIVATE_CHANNEL_ID"]
     SHARED_CHANNEL_ID = config["conf"]["SHARED_CHANNEL_ID"]
