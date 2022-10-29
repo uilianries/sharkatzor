@@ -394,8 +394,9 @@ class Sharkatzor(discord.Client):
                 posted_video.time.year == now.year) or \
                posted_video.time > recorded_video.time:
                 result = posted_video.save(force_insert=True)
-                if result and not SHARKTAZOR_DRY_RUN:
-                    await self.discord.publish_new_video(posted_video)
+                if result:
+                    if not SHARKTAZOR_DRY_RUN:
+                        await self.discord.publish_new_video(posted_video)
                 else:
                     self.logger.error(f"Could not add a new entry on Video table: {posted_video}")
 
@@ -405,8 +406,9 @@ class Sharkatzor(discord.Client):
             is_alive, live = await self.twitch.is_alive()
             if is_alive and (recorded_live is None or live.time > recorded_live.time):
                 result = live.save(force_insert=True)
-                if result and not SHARKTAZOR_DRY_RUN:
-                    await self.discord.publish_live(live)
+                if result:
+                    if not SHARKTAZOR_DRY_RUN:
+                        await self.discord.publish_live(live)
                 else:
                     self.logger.error(f"Could not add a new entry on Twitch table: {live}")
 
