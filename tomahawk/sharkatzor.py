@@ -287,7 +287,6 @@ class Discord(object):
         await self._general_channel.send(f"Tomahawk está ao vivo na Twitch @everyone!\n**{live.title}**\n{live.link}")
 
     async def delete_forbidden_message(self, message):
-        self._logger.debug(f"MESSAGE: {message.content}")
         if message.embeds:
             if message.author.id not in DISCORD_ALLOWED_USERS and not any(role.id in DISCORD_ALLOWED_ROLES for role in message.author.roles):
                 if message.channel.id == GENERAL_CHANNEL_ID:
