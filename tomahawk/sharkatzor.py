@@ -18,7 +18,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 
-SHARKTAZOR_CONF = os.getenv("SHARKATZOR_CONF", "/etc/sharkatzor.conf")
+#SHARKTAZOR_CONF = os.getenv("SHARKATZOR_CONF", "/etc/sharkatzor.conf")
+SHARKTAZOR_CONF = os.getenv("SHARKATZOR_CONF", "/home/uilian/Development/sharkatzor/staging.conf")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", None)
 GENERAL_CHANNEL_ID = int(os.getenv("GENERAL_CHANNEL_ID", 0))
 PRIVATE_CHANNEL_ID = int(os.getenv("PRIVATE_CHANNEL_ID", 0))
@@ -28,14 +29,12 @@ TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID", None)
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET", None)
 YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID", "UCJ0vp6VTn7JuFNEMj5YIRcQ")
 TIME_INTERVAL_SECONDS = int(os.getenv("TIME_INTERVAL_SECONDS", 60))
-DND_INTERVAL_MINUTES = int(os.getenv("DND_INTERVAL_MINUTES", 15))
 TWITCH_COOLDOWN = int(os.getenv("TWITCH_COOLDOWN", 6))
 DISCORD_COOLDOWN = int(os.getenv("DISCORD_COOLDOWN", 6))
 DISCORD_ALLOWED_ROLES = [int(it) for it in os.getenv("DISCORD_ALLOWED_ROLES", "0").split(",")]
 DISCORD_ALLOWED_USERS = [int(it) for it in os.getenv("DISCORD_ALLOWED_USERS", "0").split(",")]
 DATABASE_PATH = os.getenv("DATABASE_PATH", "/home/orangepi/.sharkatzor/database.json")
 GCP_API_KEYS = os.getenv("GCP_API_KEYS", "").split(",")
-DND_INTERVAL = os.getenv("DND_INTERVAL", "00,09")
 RETRY_MAX = 5
 RETRY_TIME_INTERNAL = 10
 
@@ -238,16 +237,6 @@ class Sharkatzor(discord.Client):
 
     @tasks.loop(seconds=TIME_INTERVAL_SECONDS)
     async def background_task(self):
-        self.logger.debug("On Background task")
-        dnd = await self._do_not_disturb()
-        if dnd:
-            if self.loop_interval == TIME_INTERVAL_SECONDS:
-                self.loop_interval = DND_INTERVAL_MINUTES
-                self.background_task.change_interval(minutes=self.loop_interval)
-            return
-        elif not dnd and self.loop_interval == DND_INTERVAL_MINUTES:
-            self.loop_interval = TIME_INTERVAL_SECONDS
-            self.background_task.change_interval(seconds=self.loop_interval)
         self.logger.debug("Pooling task")
         await self.publish_new_video()
         await self.publish_live()
@@ -427,14 +416,6 @@ class Sharkatzor(discord.Client):
                     await message.author.kick("Usuário caiu no golpe do litrão e enviou phising no servidor.")
                     await self.private_channel.send(f"Usuário {message.author.mention} caiu no golpe do litrão. Mensagem removida e usuário kickado.")
                     break
-
-    async def _do_not_disturb(self):
-        now = datetime.now(tz=ZoneInfo("America/Sao_Paulo"))
-        min, max = DND_INTERVAL.split(",")
-        dnd = int(min) <= now.hour <= int(max)
-        if dnd:
-            self.logger.debug(f"DND interval: ({min}) <= ({now.hour:02d}:{now.minute:02d}) <= ({max})")
-        return dnd
 
 
 def load_configuration():
