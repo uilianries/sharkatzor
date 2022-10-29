@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 
 SHARKTAZOR_CONF = os.getenv("SHARKATZOR_CONF", "/etc/sharkatzor.conf")
 LOGGING_FILE = os.getenv("LOGGING_FILE", "/home/orangepi/.sharkatzor/sharkatzor.log")
-DATABASE_PATH = os.getenv("DATABASE_PATH", "/home/orangepi/.sharkatzor/database.json")
+DATABASE_PATH = os.getenv("DATABASE_PATH", "/home/orangepi/.sharkatzor/database.db")
 SHARKTAZOR_DRY_RUN = os.getenv("SHARKTAZOR_DRY_RUN", None)
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", None)
 GENERAL_CHANNEL_ID = int(os.getenv("GENERAL_CHANNEL_ID", 0))
