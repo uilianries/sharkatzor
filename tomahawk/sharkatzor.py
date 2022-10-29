@@ -13,9 +13,9 @@ import os
 import base64
 import asyncio
 import configparser
+import peewee
 from copy import copy
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 
 #SHARKTAZOR_CONF = os.getenv("SHARKATZOR_CONF", "/etc/sharkatzor.conf")
@@ -33,7 +33,8 @@ TWITCH_COOLDOWN = int(os.getenv("TWITCH_COOLDOWN", 6))
 DISCORD_COOLDOWN = int(os.getenv("DISCORD_COOLDOWN", 6))
 DISCORD_ALLOWED_ROLES = [int(it) for it in os.getenv("DISCORD_ALLOWED_ROLES", "0").split(",")]
 DISCORD_ALLOWED_USERS = [int(it) for it in os.getenv("DISCORD_ALLOWED_USERS", "0").split(",")]
-DATABASE_PATH = os.getenv("DATABASE_PATH", "/home/orangepi/.sharkatzor/database.json")
+# DATABASE_PATH = os.getenv("DATABASE_PATH", "/home/orangepi/.sharkatzor/database.json")
+DATABASE_PATH = os.getenv("DATABASE_PATH", "/home/uilian/Development/sharkatzor/sharkatzor.db")
 GCP_API_KEYS = os.getenv("GCP_API_KEYS", "").split(",")
 RETRY_MAX = 5
 RETRY_TIME_INTERNAL = 10
@@ -46,11 +47,36 @@ formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
 S_HANDLER.setFormatter(formatter)
 LOGGER.addHandler(S_HANDLER)
 
+DATABASE = peewee.SqliteDatabase(DATABASE_PATH)
+
 
 class SharkatzorError(Exception):
     def __init__(self, message):
         self.message = message
         super().__init__(self.message)
+
+
+class YTVideo(peewee.Model):
+    id = peewee.TextField(primary_key=True)
+    title = peewee.TextField()
+    time = peewee.DateTimeField()
+
+    class Meta:
+        database = DATABASE
+        db_table = 'YTVideo'
+
+
+class TwitchStream(peewee.Model):
+    title = peewee.TextField()
+    time = peewee.DateTimeField()
+
+    class Meta:
+        database = DATABASE
+        db_table = 'TwitchStream'
+
+
+YTVideo.create_table()
+TwitchStream.create_table()
 
 
 class Video(object):
@@ -251,7 +277,7 @@ class Sharkatzor(discord.Client):
         for key in GCP_API_KEYS:
             try:
                 self.youtube = None
-                self.logger.info("Connecting to YT with key {}****".format(key[:8]))
+                self.logger.info("Connecting to YT with key {}****".format(key[:8]))q
                 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=key)
                 request = youtube.channels().list(part="id,contentDetails", id=YOUTUBE_CHANNEL_ID, maxResults=1)
                 response = request.execute()
