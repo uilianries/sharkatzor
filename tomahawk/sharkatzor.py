@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 SHARKTAZOR_CONF = os.getenv("SHARKATZOR_CONF", "/etc/sharkatzor.conf")
 LOGGING_FILE = os.getenv("LOGGING_FILE", "/home/orangepi/.sharkatzor/sharkatzor.log")
 DATABASE_PATH = os.getenv("DATABASE_PATH", "/home/orangepi/.sharkatzor/database.json")
+SHARKTAZOR_DRY_RUN = os.getenv("SHARKTAZOR_DRY_RUN", None)
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", None)
 GENERAL_CHANNEL_ID = int(os.getenv("GENERAL_CHANNEL_ID", 0))
 PRIVATE_CHANNEL_ID = int(os.getenv("PRIVATE_CHANNEL_ID", 0))
@@ -334,6 +335,7 @@ class Sharkatzor(discord.Client):
         self.logger.info(f'Allowed Discord users: {DISCORD_ALLOWED_USERS}')
         self.logger.info(f'Allowed Discord roles: {DISCORD_ALLOWED_ROLES}')
         self.logger.info('Youtube keys: {}'.format(len(GCP_API_KEYS)))
+        self.logger.info('Dry Run: {}'.format(True if SHARKTAZOR_DRY_RUN else False))
 
     async def setup_hook(self) -> None:
         self.logger.info("Reading DB ...")
@@ -392,7 +394,7 @@ class Sharkatzor(discord.Client):
                 posted_video.time.year == now.year) or \
                posted_video.time > recorded_video.time:
                 result = posted_video.save(force_insert=True)
-                if result:
+                if result and not SHARKTAZOR_DRY_RUN:
                     await self.discord.publish_new_video(posted_video)
                 else:
                     self.logger.error(f"Could not add a new entry on Video table: {posted_video}")
@@ -403,7 +405,7 @@ class Sharkatzor(discord.Client):
             is_alive, live = await self.twitch.is_alive()
             if is_alive and (recorded_live is None or live.time > recorded_live.time):
                 result = live.save(force_insert=True)
-                if result:
+                if result and not SHARKTAZOR_DRY_RUN:
                     await self.discord.publish_live(live)
                 else:
                     self.logger.error(f"Could not add a new entry on Twitch table: {live}")
