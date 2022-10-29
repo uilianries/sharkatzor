@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 
 SHARKTAZOR_CONF = os.getenv("SHARKATZOR_CONF", "/etc/sharkatzor.conf")
 LOGGING_FILE = os.getenv("LOGGING_FILE", "/home/orangepi/.sharkatzor/sharkatzor.log")
-DATABASE_PATH = os.getenv("DATABASE_PATH", "/home/orangepi/.sharkatzor/database.db")
+DATABASE_PATH = os.getenv("DATABASE_PATH", "/home/orangepi/.sharkatzor/sharkatzor.db")
 SHARKTAZOR_DRY_RUN = os.getenv("SHARKTAZOR_DRY_RUN", None)
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", None)
 GENERAL_CHANNEL_ID = int(os.getenv("GENERAL_CHANNEL_ID", 0))
@@ -30,7 +30,7 @@ TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET", None)
 YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID", "UCJ0vp6VTn7JuFNEMj5YIRcQ")
 TIME_INTERVAL_SECONDS = int(os.getenv("TIME_INTERVAL_SECONDS", 60))
 TWITCH_COOLDOWN = int(os.getenv("TWITCH_COOLDOWN", 6))
-DISCORD_COOLDOWN = int(os.getenv("DISCORD_COOLDOWN", 6))
+DISCORD_COOLDOWN = int(os.getenv("DISCORD_COOLDOWN", 4))
 DISCORD_ALLOWED_ROLES = [int(it) for it in os.getenv("DISCORD_ALLOWED_ROLES", "0").split(",")]
 DISCORD_ALLOWED_USERS = [int(it) for it in os.getenv("DISCORD_ALLOWED_USERS", "0").split(",")]
 GCP_API_KEYS = os.getenv("GCP_API_KEYS", "").split(",")
@@ -226,13 +226,23 @@ class Twitch(object):
             self._logger.error(message)
             await self._discord.post_on_private_channel(message)
             return False, None
-        data = json.loads(response.text)['data']
-        if not data:
-            return False, None
-        is_alive = data[0]['type'] == 'live'
-        title = data[0]['title']
+        json_data = response.json()
+        data = json_data['data']
+        is_alive = False
+        live = None
+        if data:
+            try:
+                is_alive = data[0]['type'] == 'live'
+                title = data[0]['title']
+                live = Live(title=title)
+            except Exception as error:
+                message = f"Could not parse HTTP response from Twitch: {error}"
+                is_alive = False
+                self._logger.error(message)
+                self._discord.post_on_private_channel(message)
+
         self._logger.debug("Is alive on Twitch: {}".format("YES" if is_alive else "NO"))
-        return is_alive, Live(title=title)
+        return is_alive, live
 
     async def login(self):
         self._logger.debug("Login on Twitch")
