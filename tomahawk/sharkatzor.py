@@ -59,7 +59,7 @@ class SharkatzorError(Exception):
 
 
 class Video(peewee.Model):
-    identity = peewee.TextField(unique=True)
+    identity = peewee.TextField()
     title = peewee.TextField()
     time = peewee.DateTimeField(default=datetime.now)
 
