@@ -59,7 +59,7 @@ class SharkatzorError(Exception):
 
 
 class Video(peewee.Model):
-    id = peewee.TextField(primary_key=True)
+    identity = peewee.TextField(unique=True)
     title = peewee.TextField()
     time = peewee.DateTimeField(default=datetime.now)
 
@@ -69,7 +69,7 @@ class Video(peewee.Model):
 
     @property
     def link(self):
-        return f"https://www.youtube.com/watch?v={self.id}"
+        return f"https://www.youtube.com/watch?v={self.identity}"
 
     def is_stale(self):
         if self.time is None:
@@ -97,7 +97,7 @@ class Video(peewee.Model):
                 video_date = datetime.strptime(json_data["publishedAt"], "YYYY-MM-DDThh:mm:ss")
             except Exception:
                 pass
-            return Video(id=str(video_id), title=str(video_title), time=video_date)
+            return Video(identity=str(video_id), title=str(video_title), time=video_date)
 
     @staticmethod
     def get_latest_video():
@@ -117,7 +117,7 @@ class Video(peewee.Model):
             LOGGER.error(f"Could not recycle Video DB: {error}")
 
     def __str__(self):
-        return f"{self.id}: {self.title}"
+        return f"{self.identity}: {self.title}"
 
 
 class Live(peewee.Model):
