@@ -59,7 +59,7 @@ class SharkatzorError(Exception):
 
 
 class Video(peewee.Model):
-    identity = peewee.TextField()
+    identity = peewee.TextField(unique=True)
     title = peewee.TextField()
     time = peewee.DateTimeField(default=datetime.now)
 
@@ -123,6 +123,7 @@ class Video(peewee.Model):
 class Live(peewee.Model):
     title = peewee.TextField()
     time = peewee.DateTimeField(default=datetime.now)
+    identity = peewee.TextField(unique=True)
 
     class Meta:
         database = DATABASE
@@ -156,7 +157,7 @@ class Live(peewee.Model):
             LOGGER.error(f"Could not recycle Live DB: {error}")
 
     def __str__(self):
-        return f"{self.time}: {self.title}"
+        return f"[{self.time}] - [{self.identity}]: {self.title}"
 
 
 Video.create_table()
@@ -234,7 +235,8 @@ class Twitch(object):
             try:
                 is_alive = data[0]['type'] == 'live'
                 title = data[0]['title']
-                live = Live(title=title)
+                identity = data[0]['id']
+                live = Live(title=title, identity=identity)
             except Exception as error:
                 message = f"Could not parse HTTP response from Twitch: {error}"
                 is_alive = False
@@ -390,37 +392,34 @@ class Sharkatzor(discord.Client):
 
     async def _process_new_youtube_video(self):
         recorded_video = Video.get_latest_video()
-        if recorded_video is None or (recorded_video is not None and recorded_video.is_stale()):
-            posted_video = await self.youtube.get_latest_video()
+        posted_video = await self.youtube.get_latest_video()
+        if posted_video is None:
+            await self.discord.post_on_private_channel(f"Could not scrap YT channel {YOUTUBE_CHANNEL_ID}!")
+            return
 
-            if posted_video is None:
-                await self.discord.post_on_private_channel(f"Could not scrap YT channel {YOUTUBE_CHANNEL_ID}!")
-                return
-
-            now = datetime.now()
-            if (recorded_video is None and
-                posted_video.time.day == now.day and
-                posted_video.time.month == now.month and
-                posted_video.time.year == now.year) or \
-               posted_video.time > recorded_video.time:
-                result = posted_video.save(force_insert=True)
-                if result:
-                    if not SHARKTAZOR_DRY_RUN:
-                        await self.discord.publish_new_video(posted_video)
-                else:
-                    self.logger.error(f"Could not add a new entry on Video table: {posted_video}")
+        now = datetime.now()
+        if (recorded_video is None and
+            posted_video.time.day == now.day and
+            posted_video.time.month == now.month and
+            posted_video.time.year == now.year) or \
+           (recorded_video and posted_video.identity != recorded_video.identity):
+            result = posted_video.save(force_insert=True)
+            if result:
+                if not SHARKTAZOR_DRY_RUN:
+                    await self.discord.publish_new_video(posted_video)
+            else:
+                self.logger.error(f"Could not add a new entry on Video table: {posted_video}")
 
     async def _process_new_twitch_live(self):
         recorded_live = Live.get_latest_live()
-        if recorded_live is None or (recorded_live is not None and recorded_live.is_stale()):
-            is_alive, live = await self.twitch.is_alive()
-            if is_alive and (recorded_live is None or live.time > recorded_live.time):
-                result = live.save(force_insert=True)
-                if result:
-                    if not SHARKTAZOR_DRY_RUN:
-                        await self.discord.publish_live(live)
-                else:
-                    self.logger.error(f"Could not add a new entry on Twitch table: {live}")
+        is_alive, live = await self.twitch.is_alive()
+        if is_alive and (recorded_live is None or (recorded_live and live.identity != recorded_live.identity)):
+            result = live.save(force_insert=True)
+            if result:
+                if not SHARKTAZOR_DRY_RUN:
+                    await self.discord.publish_live(live)
+            else:
+                self.logger.error(f"Could not add a new entry on Twitch table: {live}")
 
 
 def load_configuration():
