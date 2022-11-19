@@ -72,7 +72,7 @@ class Video(peewee.Model):
     def link(self):
         return f"https://www.youtube.com/watch?v={self.identity}"
 
-    async def is_stale(self):
+    def is_stale(self):
         if self.time is None:
             return True
         latest = Video.get_latest_video()
@@ -83,7 +83,7 @@ class Video(peewee.Model):
         return diff_hours > DISCORD_COOLDOWN
 
     @staticmethod
-    async def generate(json_data):
+    def generate(json_data):
         if json_data:
             video_id = "---"
             video_title = ""
@@ -136,7 +136,7 @@ class Live(peewee.Model):
     def link(self):
         return f"https://www.twitch.tv/{TWITCH_CHANNEL}"
 
-    async def is_stale(self):
+    def is_stale(self):
         if self.time is None:
             return True
         latest = Live.get_latest_live()
@@ -209,7 +209,7 @@ class Youtube(object):
                 return None
             video_data = response["items"][0]["snippet"]
             self._logger.debug("Latest video on YT: {}".format(video_data["resourceId"]["videoId"]))
-            return await Video.generate(video_data)
+            return Video.generate(video_data)
         except HttpError as err:
             self._logger.error(err.reason)
         except SharkatzorError as err:
@@ -409,26 +409,30 @@ class Sharkatzor(discord.Client):
             posted_video.time.month == now.month and
             posted_video.time.year == now.year) or \
            (recorded_video and posted_video.identity != recorded_video.identity) and \
-           await posted_video.is_stale():
-            result = posted_video.save(force_insert=True)
-            if result:
-                if not SHARKTAZOR_DRY_RUN:
-                    await self.discord.publish_new_video(posted_video)
-            else:
-                self.logger.error(f"Could not add a new entry on Video table: {posted_video}")
+           posted_video.is_stale():
+            with DATABASE.atomic() as context:
+                result = posted_video.save(force_insert=True)
+                context.commit()
+                if result:
+                    if not SHARKTAZOR_DRY_RUN:
+                        await self.discord.publish_new_video(posted_video)
+                else:
+                    self.logger.error(f"Could not add a new entry on Video table: {posted_video}")
 
     async def _process_new_twitch_live(self):
         recorded_live = Live.get_latest_live()
         is_alive, live = await self.twitch.is_alive()
         if is_alive and \
            (recorded_live is None or (recorded_live and live.identity != recorded_live.identity)) and \
-           await live.is_stale():
-            result = live.save(force_insert=True)
-            if result:
-                if not SHARKTAZOR_DRY_RUN:
-                    await self.discord.publish_live(live)
-            else:
-                self.logger.error(f"Could not add a new entry on Twitch table: {live}")
+           live.is_stale():
+            with DATABASE.atomic() as context:
+                result = live.save(force_insert=True)
+                context.commit()
+                if result:
+                    if not SHARKTAZOR_DRY_RUN:
+                        await self.discord.publish_live(live)
+                else:
+                    self.logger.error(f"Could not add a new entry on Twitch table: {live}")
 
 
 def load_configuration():
