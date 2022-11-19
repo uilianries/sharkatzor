@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import logging.handlers
+import json
+import os
+import asyncio
+import configparser
+from datetime import datetime, timedelta
+
+import peewee
 from discord.ext import tasks
 import discord
 import requests
 import googleapiclient.discovery
 from googleapiclient.errors import HttpError
 
-import logging.handlers
-import json
-import os
-import asyncio
-import configparser
-import peewee
-from datetime import datetime, timedelta
 
 
 SHARKTAZOR_CONF = os.getenv("SHARKATZOR_CONF", "/etc/sharkatzor.conf")
@@ -21,16 +22,16 @@ LOGGING_FILE = os.getenv("LOGGING_FILE", "/home/orangepi/.sharkatzor/sharkatzor.
 DATABASE_PATH = os.getenv("DATABASE_PATH", "/home/orangepi/.sharkatzor/sharkatzor.db")
 SHARKTAZOR_DRY_RUN = os.getenv("SHARKTAZOR_DRY_RUN", None)
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", None)
-GENERAL_CHANNEL_ID = int(os.getenv("GENERAL_CHANNEL_ID", 0))
-PRIVATE_CHANNEL_ID = int(os.getenv("PRIVATE_CHANNEL_ID", 0))
-SHARED_CHANNEL_ID = int(os.getenv("SHARED_CHANNEL_ID", 0))
+GENERAL_CHANNEL_ID = int(os.getenv("GENERAL_CHANNEL_ID", "0"))
+PRIVATE_CHANNEL_ID = int(os.getenv("PRIVATE_CHANNEL_ID", "0"))
+SHARED_CHANNEL_ID = int(os.getenv("SHARED_CHANNEL_ID", "0"))
 TWITCH_CHANNEL = os.getenv("TWITCH_CHANNEL", "tomahawk_aoe")
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID", None)
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET", None)
 YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID", "UCJ0vp6VTn7JuFNEMj5YIRcQ")
-TIME_INTERVAL_SECONDS = int(os.getenv("TIME_INTERVAL_SECONDS", 60))
-TWITCH_COOLDOWN = int(os.getenv("TWITCH_COOLDOWN", 6))
-DISCORD_COOLDOWN = int(os.getenv("DISCORD_COOLDOWN", 4))
+TIME_INTERVAL_SECONDS = int(os.getenv("TIME_INTERVAL_SECONDS", "60"))
+TWITCH_COOLDOWN = int(os.getenv("TWITCH_COOLDOWN", "4"))
+DISCORD_COOLDOWN = int(os.getenv("DISCORD_COOLDOWN", "2"))
 DISCORD_ALLOWED_ROLES = [int(it) for it in os.getenv("DISCORD_ALLOWED_ROLES", "0").split(",")]
 DISCORD_ALLOWED_USERS = [int(it) for it in os.getenv("DISCORD_ALLOWED_USERS", "0").split(",")]
 GCP_API_KEYS = os.getenv("GCP_API_KEYS", "").split(",")
@@ -71,16 +72,18 @@ class Video(peewee.Model):
     def link(self):
         return f"https://www.youtube.com/watch?v={self.identity}"
 
-    def is_stale(self):
+    async def is_stale(self):
         if self.time is None:
             return True
-        now = datetime.now()
-        diff = now - self.time
+        latest = Video.get_latest_video()
+        if latest is None:
+            return True
+        diff = self.time - latest.time
         diff_hours = diff.total_seconds() / 3600
         return diff_hours > DISCORD_COOLDOWN
 
     @staticmethod
-    def generate(json_data):
+    async def generate(json_data):
         if json_data:
             video_id = "---"
             video_title = ""
@@ -133,9 +136,13 @@ class Live(peewee.Model):
     def link(self):
         return f"https://www.twitch.tv/{TWITCH_CHANNEL}"
 
-    def is_stale(self):
-        now = datetime.now()
-        diff = now - self.time
+    async def is_stale(self):
+        if self.time is None:
+            return True
+        latest = Live.get_latest_live()
+        if latest is None:
+            return True
+        diff = self.time - latest.time
         diff_hours = diff.total_seconds() / 3600
         return diff_hours > TWITCH_COOLDOWN
 
@@ -202,7 +209,7 @@ class Youtube(object):
                 return None
             video_data = response["items"][0]["snippet"]
             self._logger.debug("Latest video on YT: {}".format(video_data["resourceId"]["videoId"]))
-            return Video.generate(video_data)
+            return await Video.generate(video_data)
         except HttpError as err:
             self._logger.error(err.reason)
         except SharkatzorError as err:
@@ -221,7 +228,7 @@ class Twitch(object):
             self._logger.debug("Twitch login expired")
             await self.login()
         params = {'Client-ID': TWITCH_CLIENT_ID, 'Authorization':  "Bearer " + self._access_token}
-        response = requests.get(f'https://api.twitch.tv/helix/streams?user_login={TWITCH_CHANNEL}', headers=params)
+        response = requests.get(f'https://api.twitch.tv/helix/streams?user_login={TWITCH_CHANNEL}', headers=params, timeout=45)
         if not response.ok:
             message = f"Could not fetch Twitch channel {TWITCH_CHANNEL}"
             self._logger.error(message)
@@ -280,8 +287,7 @@ class Twitch(object):
             response = requests.get(url='https://id.twitch.tv/oauth2/validate', headers=params)
             if response.ok:
                 return True
-            else:
-                self._logger.info(f"Twitch login expired: {response.text}")
+            self._logger.info(f"Twitch login expired: {response.text}")
         return False
 
 
@@ -402,7 +408,8 @@ class Sharkatzor(discord.Client):
             posted_video.time.day == now.day and
             posted_video.time.month == now.month and
             posted_video.time.year == now.year) or \
-           (recorded_video and posted_video.identity != recorded_video.identity):
+           (recorded_video and posted_video.identity != recorded_video.identity) and \
+           await posted_video.is_stale():
             result = posted_video.save(force_insert=True)
             if result:
                 if not SHARKTAZOR_DRY_RUN:
@@ -413,7 +420,9 @@ class Sharkatzor(discord.Client):
     async def _process_new_twitch_live(self):
         recorded_live = Live.get_latest_live()
         is_alive, live = await self.twitch.is_alive()
-        if is_alive and (recorded_live is None or (recorded_live and live.identity != recorded_live.identity)):
+        if is_alive and \
+           (recorded_live is None or (recorded_live and live.identity != recorded_live.identity)) and \
+           await live.is_stale():
             result = live.save(force_insert=True)
             if result:
                 if not SHARKTAZOR_DRY_RUN:
