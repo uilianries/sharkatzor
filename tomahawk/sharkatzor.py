@@ -44,11 +44,7 @@ formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
 S_HANDLER = logging.StreamHandler()
 S_HANDLER.setLevel(logging.DEBUG)
 S_HANDLER.setFormatter(formatter)
-F_HANDLER = logging.handlers.RotatingFileHandler(LOGGING_FILE, maxBytes=5*1024*1024, backupCount=2)
-F_HANDLER.setLevel(logging.INFO)
-F_HANDLER.setFormatter(formatter)
 LOGGER.addHandler(S_HANDLER)
-LOGGER.addHandler(F_HANDLER)
 
 DATABASE = peewee.SqliteDatabase(DATABASE_PATH)
 
